@@ -14,51 +14,50 @@ import (
 
 var ErrInvalidProtocol = errors.New("invalid protocol")
 
-func (s *Service) newSession(conn net.Conn) *Session {
-	return &Session{conn: conn}
-}
-
 type Session struct {
 	sync.Once
-	conn    net.Conn
-	service *Service
+	server *Server
+	reader *bufio.Reader
+	writer *bufio.Writer
+	conn   net.Conn
+	secure bool
 }
 
 func (s *Session) handleLoop() (err error) {
 	defer s.Close()
 
-	reader := bufio.NewReaderSize(s.conn, 1024*4)
+	s.reader = bufio.NewReader(s.conn)
+	s.writer = bufio.NewWriter(s.conn)
 
 	for {
-		r, err := http.ReadRequest(reader)
+		r, err := http.ReadRequest(s.reader)
 		if err != nil {
 			return err
 		}
 
 		switch r.Method {
 		case "CONNECT":
-			_, err = fmt.Fprintf(s.conn, "HTTP/%d.%d %03d %s\r\n\r\n", r.ProtoMajor, r.ProtoMinor, http.StatusOK, "Connection established")
-			if err != nil {
+			if _, err = fmt.Fprintf(s.conn, "%s 200 Connection established\r\n\r\n", r.Proto); err != nil {
 				return err
 			}
-			err = s.handleTLS(reader)
-			if err != nil {
+			if err = s.handleTLS(r); err != nil {
 				return err
 			}
 		default:
-			s.handleHTTP(r)
+			if err = s.handleHTTP(r); err != nil {
+				return err
+			}
 		}
-
 	}
 }
 
-func (s *Session) handleTLS(reader *bufio.Reader) error {
+func (s *Session) handleTLS(r *http.Request) error {
 	b := make([]byte, 1)
-	if _, err := reader.Read(b); err != nil {
+	if _, err := s.reader.Read(b); err != nil {
 		return err
 	}
-	buf := make([]byte, reader.Buffered())
-	if _, err := reader.Read(buf); err != nil {
+	buf := make([]byte, s.reader.Buffered())
+	if _, err := s.reader.Read(buf); err != nil {
 		return err
 	}
 
@@ -68,18 +67,30 @@ func (s *Session) handleTLS(reader *bufio.Reader) error {
 		return ErrInvalidProtocol
 	}
 
-	tlsconn := tls.Server(&peekedConn{s.conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), s.conn)}, nil)
+	tlsconn := tls.Server(&peekedConn{s.conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), s.conn)}, s.server.tlsCfg.TLSForHost(r.Host))
 	if err := tlsconn.Handshake(); err != nil {
 		return err
 	}
-	reader.Reset(tlsconn)
+	s.secure = true
+	s.reader.Reset(tlsconn)
+	s.writer.Reset(tlsconn)
 	return nil
 }
 
 func (s *Session) handleHTTP(r *http.Request) error {
+	defer s.writer.Flush()
+
+	r.URL.Scheme = "http"
+	if s.secure {
+		r.URL.Scheme = "https"
+	}
+	if r.URL.Host == "" {
+		r.URL.Host = r.Host
+	}
+
 	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
-		return HTTPError(s.conn, http.StatusBadRequest, err.Error(), req)
+		return HTTPError(s.writer, http.StatusBadRequest, err.Error(), req)
 	}
 	for key, values := range req.Header {
 		for _, value := range values {
@@ -104,7 +115,7 @@ func (s *Session) handleHTTP(r *http.Request) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return HTTPError(s.conn, http.StatusInternalServerError, err.Error(), req)
+		return HTTPError(s.writer, http.StatusInternalServerError, err.Error(), req)
 	}
 
 	w := NewResponse(res.StatusCode, res.Body, req)
@@ -114,10 +125,14 @@ func (s *Session) handleHTTP(r *http.Request) error {
 		}
 	}
 	w.ContentLength = res.ContentLength
-	w.TransferEncoding = res.TransferEncoding
+	if res.ContentLength == -1 && res.TransferEncoding == nil {
+		w.TransferEncoding = []string{"chunked"}
+	} else {
+		w.TransferEncoding = res.TransferEncoding
+	}
 
 	defer res.Body.Close()
-	return w.Write(s.conn)
+	return w.Write(s.writer)
 }
 
 func (s *Session) Close() error {

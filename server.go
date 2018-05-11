@@ -1,31 +1,40 @@
 package betproxy
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/faceair/betproxy/mitm"
 )
 
-func NewServer(port int, closing chan struct{}) (*Server, error) {
+func NewServer(port int, ca *x509.Certificate, privateKey interface{}) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return nil, err
 	}
+	tlsCfg, err := mitm.NewConfig(ca, privateKey)
+	if err != nil {
+		return nil, err
+	}
 	server := &Server{
-		closing:  closing,
+		closing:  make(chan struct{}),
 		listener: listener,
+		tlsCfg:   tlsCfg,
 	}
 	return server, nil
 }
 
 type Server struct {
 	sync.Once
+	tlsCfg   *mitm.Config
 	closing  chan struct{}
 	listener net.Listener
 }
 
-func (s *Server) Serve(acceptHandler func(c net.Conn)) error {
+func (s *Server) Serve() error {
 	defer s.Close()
 
 	var tempDelay time.Duration
@@ -49,8 +58,12 @@ func (s *Server) Serve(acceptHandler func(c net.Conn)) error {
 		}
 		tempDelay = 0
 
-		go acceptHandler(conn)
+		go s.OnAcceptHandler(conn)
 	}
+}
+
+func (s *Server) OnAcceptHandler(conn net.Conn) {
+	(&Session{server: s, conn: conn}).handleLoop()
 }
 
 func (s *Server) Close() (err error) {

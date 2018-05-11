@@ -43,5 +43,6 @@ func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 func HTTPError(w io.Writer, code int, err string, req *http.Request) error {
 	res := NewResponse(code, strings.NewReader(err), req)
 	res.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	res.ContentLength = int64(len(err))
 	return res.Write(w)
 }
