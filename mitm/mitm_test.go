@@ -142,7 +142,7 @@ func TestCert(t *testing.T) {
 		t.Errorf("x509c.VerifyHostname(%q): got %v, want no error", "example.com", err)
 	}
 
-	if got, want := x509c.Subject.Organization, []string{"Martian Proxy"}; !reflect.DeepEqual(got, want) {
+	if got, want := x509c.Subject.Organization, []string{"Martian Authority"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("x509c.Subject.Organization: got %v, want %v", got, want)
 	}
 

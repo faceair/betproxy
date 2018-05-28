@@ -7,31 +7,34 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var ErrInvalidProtocol = errors.New("invalid protocol")
 
 type Session struct {
 	sync.Once
-	server *Server
-	reader *bufio.Reader
-	writer *bufio.Writer
-	conn   net.Conn
-	secure bool
+	service *Service
+	reader  *bufio.Reader
+	writer  *bufio.Writer
+	conn    net.Conn
+	secure  bool
 }
 
 func (s *Session) handleLoop() (err error) {
-	defer s.Close()
-
 	s.reader = bufio.NewReader(s.conn)
 	s.writer = bufio.NewWriter(s.conn)
 
 	for {
 		r, err := http.ReadRequest(s.reader)
 		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return err
 		}
 
@@ -67,7 +70,7 @@ func (s *Session) handleTLS(r *http.Request) error {
 		return ErrInvalidProtocol
 	}
 
-	tlsconn := tls.Server(&peekedConn{s.conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), s.conn)}, s.server.tlsCfg.TLSForHost(r.Host))
+	tlsconn := tls.Server(&peekedConn{s.conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), s.conn)}, s.service.tlsCfg.TLSForHost(r.Host))
 	if err := tlsconn.Handshake(); err != nil {
 		return err
 	}
@@ -77,8 +80,19 @@ func (s *Session) handleTLS(r *http.Request) error {
 	return nil
 }
 
-func (s *Session) handleHTTP(r *http.Request) error {
-	defer s.writer.Flush()
+func (s *Session) handleHTTP(r *http.Request) (err error) {
+	start := time.Now()
+
+	var w, res *http.Response
+	defer func() {
+		if err = w.Write(s.writer); err == nil {
+			err = s.writer.Flush()
+		}
+		log.Printf("%s %d %d %s", r.URL.String(), w.ContentLength, w.StatusCode, time.Since(start))
+		if res != nil {
+			res.Body.Close()
+		}
+	}()
 
 	r.URL.Scheme = "http"
 	if s.secure {
@@ -90,9 +104,10 @@ func (s *Session) handleHTTP(r *http.Request) error {
 
 	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
-		return HTTPError(s.writer, http.StatusBadRequest, err.Error(), req)
+		w = HTTPError(http.StatusBadRequest, err.Error(), req)
+		return
 	}
-	for key, values := range req.Header {
+	for key, values := range r.Header {
 		for _, value := range values {
 			switch key {
 			case "Connection":
@@ -107,32 +122,23 @@ func (s *Session) handleHTTP(r *http.Request) error {
 		}
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-		},
-	}
-
-	res, err := client.Do(req)
+	res, err = s.service.client.Do(req)
 	if err != nil {
-		return HTTPError(s.writer, http.StatusInternalServerError, err.Error(), req)
+		w = HTTPError(http.StatusInternalServerError, err.Error(), req)
+		return
 	}
 
-	w := NewResponse(res.StatusCode, res.Body, req)
+	w = NewResponse(res.StatusCode, res.Body, req)
 	for key, values := range res.Header {
 		for _, value := range values {
 			w.Header.Add(key, value)
 		}
 	}
 	w.ContentLength = res.ContentLength
-	if res.ContentLength == -1 && res.TransferEncoding == nil {
+	if w.ContentLength == -1 {
 		w.TransferEncoding = []string{"chunked"}
-	} else {
-		w.TransferEncoding = res.TransferEncoding
 	}
-
-	defer res.Body.Close()
-	return w.Write(s.writer)
+	return
 }
 
 func (s *Session) Close() error {

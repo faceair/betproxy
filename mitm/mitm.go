@@ -26,7 +26,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
-	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -141,7 +140,7 @@ func NewConfig(ca *x509.Certificate, privateKey interface{}) (*Config, error) {
 		priv:     priv,
 		keyID:    keyID,
 		validity: time.Hour,
-		org:      "Martian Proxy",
+		org:      ca.Subject.Organization[0],
 		certs:    make(map[string]*tls.Certificate),
 		roots:    roots,
 	}, nil
@@ -184,7 +183,7 @@ func (c *Config) TLS() *tls.Config {
 		InsecureSkipVerify: c.skipVerify,
 		GetCertificate: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			if clientHello.ServerName == "" {
-				return nil, errors.New("mitm: SNI not provided, failed to build certificate")
+				return nil, errors.New("SNI not provided, failed to build certificate")
 			}
 
 			return c.cert(clientHello.ServerName)
@@ -222,8 +221,6 @@ func (c *Config) cert(hostname string) (*tls.Certificate, error) {
 	c.certmu.RUnlock()
 
 	if ok {
-		log.Printf("mitm: cache hit for %s", hostname)
-
 		// Check validity of the certificate for hostname match, expiry, etc. In
 		// particular, if the cached certificate has expired, create a new one.
 		if _, err := tlsc.Leaf.Verify(x509.VerifyOptions{
@@ -232,11 +229,7 @@ func (c *Config) cert(hostname string) (*tls.Certificate, error) {
 		}); err == nil {
 			return tlsc, nil
 		}
-
-		log.Printf("mitm: invalid certificate in cache for %s", hostname)
 	}
-
-	log.Printf("mitm: cache miss for %s", hostname)
 
 	serial, err := rand.Int(rand.Reader, MaxSerialNumber)
 	if err != nil {

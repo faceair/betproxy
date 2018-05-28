@@ -20,11 +20,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	server, err := betproxy.NewServer(3128, cacert, cakey)
+	service, err := betproxy.NewService(3128, cacert, cakey)
 	if err != nil {
 		panic(err)
 	}
-	log.Fatal(server.Serve())
+	log.Fatal(service.Listen())
 }
 
 func generateCA() error {

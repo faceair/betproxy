@@ -2,16 +2,16 @@ package betproxy
 
 import (
 	"crypto/x509"
-	"fmt"
+	"log"
 	"net"
+	"net/http"
 	"sync"
-	"time"
 
 	"github.com/faceair/betproxy/mitm"
 )
 
-func NewServer(port int, ca *x509.Certificate, privateKey interface{}) (*Server, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func NewService(port int, ca *x509.Certificate, privateKey interface{}) (*Service, error) {
+	server, err := NewTCPServer(port)
 	if err != nil {
 		return nil, err
 	}
@@ -19,57 +19,42 @@ func NewServer(port int, ca *x509.Certificate, privateKey interface{}) (*Server,
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{
-		closing:  make(chan struct{}),
-		listener: listener,
-		tlsCfg:   tlsCfg,
+	service := &Service{
+		closing: make(chan struct{}),
+		tlsCfg:  tlsCfg,
+		client:  &http.Client{},
+		server:  server,
 	}
-	return server, nil
+	return service, nil
 }
 
-type Server struct {
+type Service struct {
 	sync.Once
-	tlsCfg   *mitm.Config
-	closing  chan struct{}
-	listener net.Listener
+	closing chan struct{}
+	tlsCfg  *mitm.Config
+	client  *http.Client
+	server  *TCPServer
 }
 
-func (s *Server) Serve() error {
+func (s *Service) Listen() error {
 	defer s.Close()
+	return s.server.Serve(s.OnAcceptHandler)
+}
 
-	var tempDelay time.Duration
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
-				} else {
-					tempDelay *= 2
-				}
-				if max := 1 * time.Second; tempDelay > max {
-					tempDelay = max
-				}
+func (s *Service) OnAcceptHandler(conn net.Conn) {
+	session := &Session{service: s, conn: conn}
+	defer session.Close()
 
-				time.Sleep(tempDelay)
-				continue
-			}
-			return err
-		}
-		tempDelay = 0
-
-		go s.OnAcceptHandler(conn)
+	err := session.handleLoop()
+	if err != nil {
+		log.Printf("handle session: %s", err.Error())
 	}
 }
 
-func (s *Server) OnAcceptHandler(conn net.Conn) {
-	(&Session{server: s, conn: conn}).handleLoop()
-}
-
-func (s *Server) Close() (err error) {
+func (s *Service) Close() (err error) {
 	s.Once.Do(func() {
 		close(s.closing)
-		err = s.listener.Close()
+		err = s.server.Close()
 	})
 	return
 }

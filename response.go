@@ -40,9 +40,10 @@ func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 	return res
 }
 
-func HTTPError(w io.Writer, code int, err string, req *http.Request) error {
+func HTTPError(code int, err string, req *http.Request) *http.Response {
 	res := NewResponse(code, strings.NewReader(err), req)
 	res.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	res.Header.Set("Via", "betproxy")
 	res.ContentLength = int64(len(err))
-	return res.Write(w)
+	return res
 }
