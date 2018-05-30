@@ -128,12 +128,7 @@ func (s *Session) handleHTTP(r *http.Request) (err error) {
 		return
 	}
 
-	w = NewResponse(res.StatusCode, res.Body, req)
-	for key, values := range res.Header {
-		for _, value := range values {
-			w.Header.Add(key, value)
-		}
-	}
+	w = NewResponse(res.StatusCode, res.Header, res.Body, req)
 	w.ContentLength = res.ContentLength
 	if w.ContentLength == -1 {
 		w.TransferEncoding = []string{"chunked"}

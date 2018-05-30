@@ -20,7 +20,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	service, err := betproxy.NewService(3128, cacert, cakey)
+	tlsCfg, err := mitm.NewConfig(cacert, cakey)
+	if err != nil {
+		panic(err)
+	}
+	service, err := betproxy.NewService(":3128", tlsCfg)
 	if err != nil {
 		panic(err)
 	}

@@ -1,14 +1,13 @@
 package betproxy
 
 import (
-	"fmt"
 	"net"
 	"sync"
 	"time"
 )
 
-func NewTCPServer(port int) (*TCPServer, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func NewTCPServer(address string) (*TCPServer, error) {
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}

@@ -9,9 +9,12 @@ import (
 	"strings"
 )
 
-func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
+func NewResponse(code int, header http.Header, body io.Reader, req *http.Request) *http.Response {
 	if body == nil {
 		body = &bytes.Buffer{}
+	}
+	if header == nil {
+		header = http.Header{}
 	}
 
 	rc, ok := body.(io.ReadCloser)
@@ -25,7 +28,7 @@ func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		Header:     http.Header{},
+		Header:     header,
 		Body:       rc,
 		Request:    req,
 	}
@@ -41,9 +44,10 @@ func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 }
 
 func HTTPError(code int, err string, req *http.Request) *http.Response {
-	res := NewResponse(code, strings.NewReader(err), req)
-	res.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	res.Header.Set("Via", "betproxy")
+	res := NewResponse(code, http.Header{
+		"Content-Type": []string{"text/plain; charset=utf-8"},
+		"Via":          []string{"betproxy"},
+	}, strings.NewReader(err), req)
 	res.ContentLength = int64(len(err))
 	return res
 }
