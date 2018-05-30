@@ -2,13 +2,8 @@ language: go
 go:
   - master
 
-install:
-  - go get github.com/stretchr/testify/assert
-  - go get -d -v -u ./...
+before_install:
   - go get github.com/mattn/goveralls
 
 script:
-  - GOOS=darwin go build
-  - GOOS=windows go build
-  - GOOS=linux go build
-  - $HOME/gopath/bin/goveralls -service=travis-ci
+  - $GOPATH/bin/goveralls -service=travis-ci
