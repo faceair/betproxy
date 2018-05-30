@@ -77,7 +77,7 @@ func Test_SessionHandleHTTPOK(t *testing.T) {
 
 	go session.handleLoop()
 
-	_, err := conn.Client.Write([]byte("GET /get HTTP/1.1\nHost: httpbin.org\r\n\r\n"))
+	_, err := conn.Client.Write([]byte("GET /get HTTP/1.1\nHost: httpbin.org\nConnection: keep-alive\r\n\r\n"))
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
@@ -94,6 +94,38 @@ func Test_SessionHandleHTTPOK(t *testing.T) {
 	}
 
 	if resp.URL != "http://httpbin.org/get" {
+		t.Error("response url not equal")
+	}
+}
+
+func Test_SessionHandleHTTPChunked(t *testing.T) {
+	conn := NewFakeConn()
+	session := &Session{
+		service: &Service{
+			client: &http.Client{},
+		},
+		conn: conn.Server,
+	}
+
+	go session.handleLoop()
+
+	_, err := conn.Client.Write([]byte("GET /stream/1 HTTP/1.1\nHost: httpbin.org\r\n\r\n"))
+	if err != nil {
+		t.Errorf("err must be nil, but got %s", err.Error())
+	}
+
+	res, err := http.ReadResponse(bufio.NewReader(conn.Client), nil)
+	if err != nil {
+		t.Errorf("err must be nil, but got %s", err.Error())
+	}
+
+	resp := new(HTTPBinResp)
+	err = json.NewDecoder(res.Body).Decode(resp)
+	if err != nil {
+		t.Errorf("err must be nil, but got %s", err.Error())
+	}
+
+	if resp.URL != "http://httpbin.org/stream/1" {
 		t.Error("response url not equal")
 	}
 }

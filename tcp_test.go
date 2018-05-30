@@ -83,7 +83,6 @@ func (e *TemporaryErr) Temporary() bool {
 }
 func Test_TCPServerTemporaryErr(t *testing.T) {
 	server := &TCPServer{
-		closing:  make(chan struct{}),
 		listener: &FakeTemporaryErrListener{},
 	}
 	defer server.Close()
@@ -114,7 +113,7 @@ func Test_TCPServerClose(t *testing.T) {
 	}
 
 	err = server.Close()
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
+	if err == nil {
+		t.Error("must error, but got nil")
 	}
 }

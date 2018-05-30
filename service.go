@@ -4,7 +4,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"sync"
 
 	"github.com/faceair/betproxy/mitm"
 )
@@ -23,7 +22,6 @@ func NewService(address string, tlsCfg *mitm.Config) (*Service, error) {
 }
 
 type Service struct {
-	sync.Once
 	tlsCfg *mitm.Config
 	client *http.Client
 	server *TCPServer

@@ -2,7 +2,6 @@ package betproxy
 
 import (
 	"net"
-	"sync"
 	"time"
 )
 
@@ -12,14 +11,11 @@ func NewTCPServer(address string) (*TCPServer, error) {
 		return nil, err
 	}
 	return &TCPServer{
-		closing:  make(chan struct{}),
 		listener: listener,
 	}, nil
 }
 
 type TCPServer struct {
-	sync.Once
-	closing  chan struct{}
 	listener net.Listener
 }
 
@@ -50,9 +46,5 @@ func (s *TCPServer) Serve(onAcceptHandler func(net.Conn)) error {
 }
 
 func (s *TCPServer) Close() (err error) {
-	s.Once.Do(func() {
-		close(s.closing)
-		err = s.listener.Close()
-	})
-	return
+	return s.listener.Close()
 }

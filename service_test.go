@@ -98,7 +98,7 @@ func Test_ServiceClose(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 	err = service.Close()
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
+	if err == nil {
+		t.Error("must error, but got nil")
 	}
 }

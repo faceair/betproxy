@@ -10,14 +10,12 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 )
 
 var ErrInvalidProtocol = errors.New("invalid protocol")
 
 type Session struct {
-	sync.Once
 	service *Service
 	reader  *bufio.Reader
 	writer  *bufio.Writer
