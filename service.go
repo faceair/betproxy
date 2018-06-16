@@ -15,21 +15,32 @@ func NewService(address string, tlsCfg *mitm.Config) (*Service, error) {
 	}
 	service := &Service{
 		tlsCfg: tlsCfg,
-		client: &http.Client{},
 		server: server,
 	}
 	return service, nil
 }
 
+type Client interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type Service struct {
 	tlsCfg *mitm.Config
-	client *http.Client
 	server *TCPServer
+	client Client
 }
 
 func (s *Service) Listen() error {
+	if s.client == nil {
+		panic("must set proxy client")
+	}
+
 	defer s.Close()
 	return s.server.Serve(s.OnAcceptHandler)
+}
+
+func (s *Service) SetClient(client Client) {
+	s.client = client
 }
 
 func (s *Service) OnAcceptHandler(conn net.Conn) {

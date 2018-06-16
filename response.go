@@ -23,14 +23,15 @@ func NewResponse(code int, header http.Header, body io.Reader, req *http.Request
 	}
 
 	res := &http.Response{
-		StatusCode: code,
-		Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     header,
-		Body:       rc,
-		Request:    req,
+		StatusCode:    code,
+		Status:        fmt.Sprintf("%d %s", code, http.StatusText(code)),
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        header,
+		Body:          rc,
+		Request:       req,
+		ContentLength: -1,
 	}
 
 	if req != nil {
@@ -43,11 +44,15 @@ func NewResponse(code int, header http.Header, body io.Reader, req *http.Request
 	return res
 }
 
+func HTTPText(code int, header http.Header, text string, req *http.Request) *http.Response {
+	res := NewResponse(code, header, strings.NewReader(text), req)
+	res.ContentLength = int64(len(text))
+	return res
+}
+
 func HTTPError(code int, err string, req *http.Request) *http.Response {
-	res := NewResponse(code, http.Header{
+	return HTTPText(code, http.Header{
 		"Content-Type": []string{"text/plain; charset=utf-8"},
 		"Via":          []string{"betproxy"},
-	}, strings.NewReader(err), req)
-	res.ContentLength = int64(len(err))
-	return res
+	}, err, req)
 }

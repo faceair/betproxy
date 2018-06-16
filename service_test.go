@@ -1,8 +1,6 @@
 package betproxy
 
 import (
-	"bufio"
-	"encoding/json"
 	"net"
 	"net/http"
 	"testing"
@@ -26,6 +24,7 @@ func Test_ServiceOnAccept(t *testing.T) {
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
+	service.client = &http.Client{}
 	defer service.Close()
 
 	conn := NewFakeConn()
@@ -37,13 +36,7 @@ func Test_ServiceOnAccept(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	res, err := http.ReadResponse(bufio.NewReader(conn.Client), nil)
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
-	}
-
-	resp := new(HTTPBinResp)
-	err = json.NewDecoder(res.Body).Decode(resp)
+	resp, err := ReadResp(conn.Client)
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
@@ -58,6 +51,7 @@ func Test_ServiceListen(t *testing.T) {
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
+	service.client = &http.Client{}
 	defer service.Close()
 
 	go service.Listen()
@@ -72,13 +66,7 @@ func Test_ServiceListen(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	res, err := http.ReadResponse(bufio.NewReader(conn), nil)
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
-	}
-
-	resp := new(HTTPBinResp)
-	err = json.NewDecoder(res.Body).Decode(resp)
+	resp, err := ReadResp(conn)
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}

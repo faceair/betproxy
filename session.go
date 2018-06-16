@@ -3,6 +3,8 @@ package betproxy
 import (
 	"bufio"
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -12,8 +14,6 @@ import (
 	"net/http"
 	"time"
 )
-
-var ErrInvalidProtocol = errors.New("invalid protocol")
 
 type Session struct {
 	service *Service
@@ -45,9 +45,20 @@ func (s *Session) handleLoop() (err error) {
 				return err
 			}
 		default:
-			if err = s.handleHTTP(r); err != nil {
+			start := time.Now()
+
+			w := s.handleHTTP(r)
+			if err = w.Write(s.writer); err != nil {
 				return err
 			}
+			if err = s.writer.Flush(); err != nil {
+				return err
+			}
+			if err = w.Body.Close(); err != nil {
+				return err
+			}
+
+			log.Printf("%s %db %d %s", r.URL.String(), w.ContentLength, w.StatusCode, time.Since(start))
 		}
 	}
 }
@@ -65,7 +76,7 @@ func (s *Session) handleTLS(r *http.Request) error {
 	// 22 is the TLS handshake
 	// https://tools.ietf.org/html/rfc5246#section-6.2.1
 	if b[0] != 22 {
-		return ErrInvalidProtocol
+		return errors.New("invalid protocol")
 	}
 
 	tlsconn := tls.Server(&peekedConn{s.conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), s.conn)}, s.service.tlsCfg.TLSForHost(r.Host))
@@ -78,19 +89,8 @@ func (s *Session) handleTLS(r *http.Request) error {
 	return nil
 }
 
-func (s *Session) handleHTTP(r *http.Request) (err error) {
-	start := time.Now()
-
-	var w, res *http.Response
-	defer func() {
-		if err = w.Write(s.writer); err == nil {
-			err = s.writer.Flush()
-		}
-		log.Printf("%s %d %d %s", r.URL.String(), w.ContentLength, w.StatusCode, time.Since(start))
-		if res != nil {
-			res.Body.Close()
-		}
-	}()
+func (s *Session) handleHTTP(r *http.Request) *http.Response {
+	var err error
 
 	r.URL.Scheme = "http"
 	if s.secure {
@@ -100,10 +100,21 @@ func (s *Session) handleHTTP(r *http.Request) (err error) {
 		r.URL.Host = r.Host
 	}
 
+	switch r.Header.Get("Content-Encoding") {
+	case "gzip":
+		r.Body, err = gzip.NewReader(r.Body)
+		if err != nil {
+			return HTTPError(http.StatusBadRequest, err.Error(), r)
+		}
+		r.Header.Set("Content-Encoding", "identity")
+	case "deflate":
+		r.Body = flate.NewReader(r.Body)
+		r.Header.Set("Content-Encoding", "identity")
+	}
+
 	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
-		w = HTTPError(http.StatusBadRequest, err.Error(), req)
-		return
+		return HTTPError(http.StatusBadRequest, err.Error(), r)
 	}
 	for key, values := range r.Header {
 		for _, value := range values {
@@ -120,18 +131,17 @@ func (s *Session) handleHTTP(r *http.Request) (err error) {
 		}
 	}
 
-	res, err = s.service.client.Do(req)
+	res, err := s.service.client.Do(req)
 	if err != nil {
-		w = HTTPError(http.StatusInternalServerError, err.Error(), req)
-		return
+		return HTTPError(http.StatusInternalServerError, err.Error(), req)
 	}
 
-	w = NewResponse(res.StatusCode, res.Header, res.Body, req)
+	w := NewResponse(res.StatusCode, res.Header, res.Body, req)
 	w.ContentLength = res.ContentLength
 	if w.ContentLength == -1 {
 		w.TransferEncoding = []string{"chunked"}
 	}
-	return
+	return w
 }
 
 func (s *Session) Close() error {

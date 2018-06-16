@@ -66,6 +66,16 @@ type HTTPBinResp struct {
 	URL    string `json:"url"`
 }
 
+func ReadResp(conn net.Conn) (*HTTPBinResp, error) {
+	res, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp := new(HTTPBinResp)
+	err = json.NewDecoder(res.Body).Decode(resp)
+	return resp, err
+}
+
 func Test_SessionHandleHTTPOK(t *testing.T) {
 	conn := NewFakeConn()
 	session := &Session{
@@ -77,18 +87,12 @@ func Test_SessionHandleHTTPOK(t *testing.T) {
 
 	go session.handleLoop()
 
-	_, err := conn.Client.Write([]byte("GET /get HTTP/1.1\nHost: httpbin.org\nConnection: keep-alive\r\n\r\n"))
+	_, err := conn.Client.Write([]byte("GET /get HTTP/1.1\nHost: httpbin.org\r\n\r\n"))
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	res, err := http.ReadResponse(bufio.NewReader(conn.Client), nil)
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
-	}
-
-	resp := new(HTTPBinResp)
-	err = json.NewDecoder(res.Body).Decode(resp)
+	resp, err := ReadResp(conn.Client)
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
@@ -114,13 +118,7 @@ func Test_SessionHandleHTTPChunked(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	res, err := http.ReadResponse(bufio.NewReader(conn.Client), nil)
-	if err != nil {
-		t.Errorf("err must be nil, but got %s", err.Error())
-	}
-
-	resp := new(HTTPBinResp)
-	err = json.NewDecoder(res.Body).Decode(resp)
+	resp, err := ReadResp(conn.Client)
 	if err != nil {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
