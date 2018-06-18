@@ -76,6 +76,20 @@ func Test_ServiceListen(t *testing.T) {
 	}
 }
 
+func Test_ServiceSetClient(t *testing.T) {
+	service, err := NewService(":3128", nil)
+	if err != nil {
+		t.Errorf("err must be nil, but got %s", err.Error())
+	}
+	defer service.Close()
+
+	client := &http.Client{}
+	service.SetClient(client)
+	if service.client != client {
+		t.Errorf("set client failed")
+	}
+}
+
 func Test_ServiceClose(t *testing.T) {
 	service, err := NewService(":3128", nil)
 	if err != nil {
