@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// NewTCPServer create new tcp server
 func NewTCPServer(address string) (*TCPServer, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -15,10 +16,12 @@ func NewTCPServer(address string) (*TCPServer, error) {
 	}, nil
 }
 
+// TCPServer as name
 type TCPServer struct {
 	listener net.Listener
 }
 
+// Serve start accetp new connection and call onAcceptHandler
 func (s *TCPServer) Serve(onAcceptHandler func(net.Conn)) error {
 	var tempDelay time.Duration
 	for {
@@ -45,6 +48,7 @@ func (s *TCPServer) Serve(onAcceptHandler func(net.Conn)) error {
 	}
 }
 
+// Close server
 func (s *TCPServer) Close() (err error) {
 	return s.listener.Close()
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// NewResponse create a http.Response
 func NewResponse(code int, header http.Header, body io.Reader, req *http.Request) *http.Response {
 	if body == nil {
 		body = &bytes.Buffer{}
@@ -44,12 +45,14 @@ func NewResponse(code int, header http.Header, body io.Reader, req *http.Request
 	return res
 }
 
+// HTTPText create a http.Response with giving text
 func HTTPText(code int, header http.Header, text string, req *http.Request) *http.Response {
 	res := NewResponse(code, header, strings.NewReader(text), req)
 	res.ContentLength = int64(len(text))
 	return res
 }
 
+// HTTPError create a http.Response with giving error message
 func HTTPError(code int, err string, req *http.Request) *http.Response {
 	return HTTPText(code, http.Header{
 		"Content-Type": []string{"text/plain; charset=utf-8"},

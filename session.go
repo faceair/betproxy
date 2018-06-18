@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+// Session parse the protocol on the connection and call Client.Do handle every http request
 type Session struct {
 	service *Service
 	reader  *bufio.Reader
@@ -144,6 +145,7 @@ func (s *Session) handleHTTP(r *http.Request) *http.Response {
 	return w
 }
 
+// Close connection
 func (s *Session) Close() error {
 	return s.conn.Close()
 }
