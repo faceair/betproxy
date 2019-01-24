@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -36,6 +37,8 @@ func (s *Session) handleLoop() (err error) {
 			}
 			return err
 		}
+		remoteAddrWithPort := s.conn.RemoteAddr().String()
+		r.RemoteAddr = remoteAddrWithPort[:strings.LastIndexByte(remoteAddrWithPort, ':')]
 
 		switch r.Method {
 		case "CONNECT":
@@ -59,7 +62,7 @@ func (s *Session) handleLoop() (err error) {
 				return err
 			}
 
-			log.Printf("%s %db %d %s", r.URL.String(), w.ContentLength, w.StatusCode, time.Since(start))
+			log.Printf("%s %s %db %d %s", r.RemoteAddr, r.URL.String(), w.ContentLength, w.StatusCode, time.Since(start))
 		}
 	}
 }
@@ -117,6 +120,8 @@ func (s *Session) handleHTTP(r *http.Request) *http.Response {
 	if err != nil {
 		return HTTPError(http.StatusBadRequest, err.Error(), r)
 	}
+	req.RemoteAddr = r.RemoteAddr
+
 	for key, values := range r.Header {
 		for _, value := range values {
 			switch key {
