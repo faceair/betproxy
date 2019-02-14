@@ -34,6 +34,19 @@ type FakeConn struct {
 	Client *End
 }
 
+type FakeAddr struct {
+	addr    string
+	network string
+}
+
+func (f *FakeAddr) Network() string {
+	return f.network
+}
+
+func (f *FakeAddr) String() string {
+	return f.addr
+}
+
 type End struct {
 	Reader *io.PipeReader
 	Writer *io.PipeWriter
@@ -41,8 +54,8 @@ type End struct {
 
 func (e End) Read(data []byte) (n int, err error)  { return e.Reader.Read(data) }
 func (e End) Write(data []byte) (n int, err error) { return e.Writer.Write(data) }
-func (e End) LocalAddr() net.Addr                  { return nil }
-func (e End) RemoteAddr() net.Addr                 { return nil }
+func (e End) LocalAddr() net.Addr                  { return &FakeAddr{"127.0.0.1:10086", "TCP"} }
+func (e End) RemoteAddr() net.Addr                 { return &FakeAddr{"127.0.0.1:10086", "TCP"} }
 func (e End) SetDeadline(t time.Time) error        { return nil }
 func (e End) SetReadDeadline(t time.Time) error    { return nil }
 func (e End) SetWriteDeadline(t time.Time) error   { return nil }
