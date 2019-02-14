@@ -39,6 +39,7 @@ func (s *Session) handleLoop() (err error) {
 		}
 		remoteAddrWithPort := s.conn.RemoteAddr().String()
 		r.RemoteAddr = remoteAddrWithPort[:strings.LastIndexByte(remoteAddrWithPort, ':')]
+		r.RequestURI = ""
 
 		switch r.Method {
 		case "CONNECT":
@@ -116,33 +117,19 @@ func (s *Session) handleHTTP(r *http.Request) *http.Response {
 		r.Header.Set("Content-Encoding", "identity")
 	}
 
-	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
-	if err != nil {
-		return HTTPError(http.StatusBadRequest, err.Error(), r)
-	}
-	req.RemoteAddr = r.RemoteAddr
-
-	for key, values := range r.Header {
-		for _, value := range values {
-			switch key {
-			case "Connection":
-			case "Prxoy-Authenticate":
-			case "Proxy-Connection":
-			case "Trailer":
-			case "Transfer-Encoding":
-			case "Upgrade":
-			default:
-				req.Header.Add(key, value)
-			}
+	for key := range r.Header {
+		switch key {
+		case "Connection", "Prxoy-Authenticate", "Proxy-Connection", "Trailer", "Transfer-Encoding", "Upgrade":
+			r.Header.Del(key)
 		}
 	}
 
-	res, err := s.service.client.Do(req)
+	res, err := s.service.client.Do(r)
 	if err != nil {
-		return HTTPError(http.StatusInternalServerError, err.Error(), req)
+		return HTTPError(http.StatusInternalServerError, err.Error(), r)
 	}
 
-	w := NewResponse(res.StatusCode, res.Header, res.Body, req)
+	w := NewResponse(res.StatusCode, res.Header, res.Body, r)
 	w.ContentLength = res.ContentLength
 	if w.ContentLength == -1 {
 		w.TransferEncoding = []string{"chunked"}
