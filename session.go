@@ -128,13 +128,7 @@ func (s *Session) handleHTTP(r *http.Request) *http.Response {
 	if err != nil {
 		return HTTPError(http.StatusInternalServerError, err.Error(), r)
 	}
-
-	w := NewResponse(res.StatusCode, res.Header, res.Body, r)
-	w.ContentLength = res.ContentLength
-	if w.ContentLength == -1 {
-		w.TransferEncoding = []string{"chunked"}
-	}
-	return w
+	return res
 }
 
 // Close connection
