@@ -41,7 +41,7 @@ func Test_ServiceOnAccept(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	if resp.URL != "http://httpbin.org/get" {
+	if resp.URL != "https://httpbin.org/get" {
 		t.Error("response url not equal")
 	}
 }
@@ -71,7 +71,7 @@ func Test_ServiceListen(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	if resp.URL != "http://httpbin.org/get" {
+	if resp.URL != "https://httpbin.org/get" {
 		t.Error("response url not equal")
 	}
 }

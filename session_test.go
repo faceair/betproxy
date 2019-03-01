@@ -110,7 +110,7 @@ func Test_SessionHandleHTTPOK(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	if resp.URL != "http://httpbin.org/get" {
+	if resp.URL != "https://httpbin.org/get" {
 		t.Error("response url not equal")
 	}
 }
@@ -136,7 +136,7 @@ func Test_SessionHandleHTTPChunked(t *testing.T) {
 		t.Errorf("err must be nil, but got %s", err.Error())
 	}
 
-	if resp.URL != "http://httpbin.org/stream/1" {
+	if resp.URL != "https://httpbin.org/stream/1" {
 		t.Error("response url not equal")
 	}
 }
