@@ -12,7 +12,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -37,8 +36,7 @@ func (s *Session) handleLoop() (err error) {
 			}
 			return err
 		}
-		remoteAddrWithPort := s.conn.RemoteAddr().String()
-		r.RemoteAddr = remoteAddrWithPort[:strings.LastIndexByte(remoteAddrWithPort, ':')]
+		r.RemoteAddr = s.conn.RemoteAddr().String()
 		r.RequestURI = ""
 
 		switch r.Method {
